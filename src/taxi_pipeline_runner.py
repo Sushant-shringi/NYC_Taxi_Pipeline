@@ -1,48 +1,41 @@
+import boto3
 import json
-from taxi_extractor_lambda import lambda_handler as extractor_handler
-from taxi_transformer_lambda import lambda_handler as transformer_handler
-from taxi_loader_lambda import lambda_handler as loader_handler
 
-def run_local_pipeline():
-    print("=== STARTING LOCAL NYC TAXI PIPELINE INTEGRATION TEST ===")
+def trigger_pipeline():
+    print("🚀 Triggering NYC Taxi Extractor Lambda from local system...")
     
+    lambda_client = boto3.client('lambda', region_name='us-east-1')
+    
+    # Dummy S3 event payload format taaki Lambda function bina error ke extract stage shuru kar sake
     mock_event = {
         "Records": [
             {
                 "s3": {
-                    "bucket": {"name": "local-mock-raw-bucket"},
-                    "object": {"key": "yellow_tripdata_2024-01.parquet"}
+                    "bucket": {
+                        "name": "your-raw-s3-bucket-name"
+                    },
+                    "object": {
+                        "key": "raw/yellow_tripdata_2024-01.parquet"
+                    }
                 }
             }
         ]
     }
     
-    print("\nExecuting Layer 1: Extractor...")
-    extractor_output = extractor_handler(mock_event, context=None)
-    print(f"Extractor Status: {extractor_output['status']}")
-    
-    if extractor_output['status'] == 'Error':
-        print("Pipeline failed at Extraction stage.")
-        return
-
-    print("\nExecuting Layer 2: Transformer...")
-    transformer_output = transformer_handler(extractor_output, context=None)
-    print(f"Transformer Status: {transformer_output['status']}")
-    
-    if transformer_output['status'] == 'Error':
-        print(f"Pipeline failed at Transformation stage: {transformer_output.get('error')}")
-        return
-
-    print("\nExecuting Layer 3: Loader (Simulated Mode)...")
     try:
-        print("Skipping AWS DynamoDB batch write for local execution.")
-        print(f"Records Processed successfully for file: {transformer_output['file_processed']}")
-        print(f"Zone Summary Records: {len(transformer_output['zone_summary'])}")
-        print(f"Payment Summary Records: {len(transformer_output['payment_summary'])}")
-        print(f"Melted Pivot Records: {len(transformer_output['melted_pivot'])}")
-        print("\n=== LOCAL PIPELINE EXECUTION SUCCESSFUL ===")
+        response = lambda_client.invoke(
+            FunctionName='taxi-extractor-service',
+            InvocationType='RequestResponse',
+            Payload=json.dumps(mock_event)
+        )
+        
+        response_payload = json.loads(response['Payload'].read().decode('utf-8'))
+        print("✅ Extractor Triggered Successfully!")
+        print("Response:", response_payload)
+        print("📢 Check AWS CloudWatch Logs for Transformer and Loader auto-trigger updates.")
+        
     except Exception as e:
-        print(f"Pipeline failed at Loading stage: {str(e)}")
+        print("❌ Error triggering Lambda:", str(e))
 
 if __name__ == "__main__":
-    run_local_pipeline()
+    trigger_pipeline()
