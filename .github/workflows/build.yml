@@ -37,6 +37,6 @@ jobs:
     # 3. AWS Lambda functions ko update karna
     - name: Deploy to AWS Lambda
       run: |
-        aws lambda update-function-code --function-name taxi_extractor_lambda --zip-file fileb://extractor.zip
-        aws lambda update-function-code --function-name taxi_transformer_lambda --zip-file fileb://transformer.zip
-        aws lambda update-function-code --function-name taxi_loader_lambda --zip-file fileb://loader.zip
+        aws lambda update-function-code --function-name taxi-extractor-service --zip-file fileb://extractor.zip
+        aws lambda update-function-code --function-name taxi-transformer-service --zip-file fileb://transformer.zip
+        aws lambda update-function-code --function-name taxi-loader-service --zip-file fileb://loader.zip
