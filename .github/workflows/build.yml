@@ -15,10 +15,10 @@ jobs:
           python-version: "3.11"
 
       - name: Install Dependencies
-        run: |requirements.txt || true
+        run: |
+          pip install -r requirements.txt || true
 
-          pip install -r 
-      name: Validate Lambda Syntax
+      - name: Validate Lambda Syntax
         run: |
           python -m py_compile src/taxi_extractor_lambda.py
           python -m py_compile src/taxi_transformer_lambda.py
