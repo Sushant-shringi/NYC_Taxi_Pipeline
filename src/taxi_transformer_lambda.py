@@ -1,61 +1,58 @@
 import json
 import boto3
-import pandas as pd
+from datetime import datetime
 
 def lambda_handler(event, context=None):
     try:
-        input_data = event.get('data', [])
-        file_processed = event.get('file_processed', 'unknown')
+        print("Transformer Stage Triggered...")
+        raw_records = event.get('data', [])
+        zone_records = event.get('zone_data', [])
         
-        df = pd.DataFrame(input_data)
+        clean_records = []
+        total_input_records = len(raw_records)
+        rejected_records = 0
         
-        df['tpep_pickup_datetime'] = pd.to_datetime(df['tpep_pickup_datetime'])
-        df['tpep_dropoff_datetime'] = pd.to_datetime(df['tpep_dropoff_datetime'])
+        zone_mapping = {str(z['LocationID']): z['Zone'] for z in zone_records if 'LocationID' in z and 'Zone' in z}
         
-        df['trip_minutes'] = (df['tpep_dropoff_datetime'] - df['tpep_pickup_datetime']).dt.total_seconds() / 60.0
-        
-        df = df[(df['total_amount'] > 0) & (df['trip_distance'] > 0) & (df['trip_minutes'] > 0)]
-        
-        df['pickup_month'] = df['tpep_pickup_datetime'].dt.strftime('%B')
-        df['pickup_date'] = df['tpep_pickup_datetime'].dt.date.astype(str)
-        df['pickup_hour'] = df['tpep_pickup_datetime'].dt.hour
-        
-        zones_url = "https://d37ci6vzurychx.cloudfront.net/misc/taxi_zone_lookup.csv"
-        zones = pd.read_csv(zones_url)
-        
-        pickup_zones = zones.rename(columns={"LocationID": "PULocationID", "Borough": "pickup_borough", "Zone": "pickup_zone"})
-        df = pd.merge(df, pickup_zones[["PULocationID", "pickup_borough", "pickup_zone"]], on="PULocationID", how="left")
-        
-        dropoff_zones = zones.rename(columns={"LocationID": "DOLocationID", "Borough": "dropoff_borough", "Zone": "dropoff_zone"})
-        df = pd.merge(df, dropoff_zones[["DOLocationID", "dropoff_borough", "dropoff_zone"]], on="DOLocationID", how="left")
-        
-        zone_summary = df.groupby(["pickup_borough", "pickup_zone"]).agg(
-            trip_count=("total_amount", "count"),
-            total_revenue=("total_amount", "sum"),
-            avg_revenue=("total_amount", "mean"),
-            avg_distance=("trip_distance", "mean"),
-            min_distance=("trip_distance", "min"),
-            max_distance=("trip_distance", "max")
-        ).reset_index()
-        
-        payment_summary = df.groupby(["pickup_month", "payment_type"]).agg(
-            count=("total_amount", "count"),
-            total_revenue=("total_amount", "sum"),
-            average_fare=("fare_amount", "mean"),
-            min_fare=("fare_amount", "min"),
-            max_fare=("fare_amount", "max")
-        ).reset_index()
-        
-        pivot = pd.pivot_table(df, values="total_amount", index="pickup_hour", columns="pickup_borough", aggfunc="sum", fill_value=0)
-        
-        melted_pivot = pivot.reset_index().melt(id_vars="pickup_hour", var_name="pickup_borough", value_name="revenue")
-        
+        for row in raw_records:
+            try:
+                p_count = int(row.get('passenger_count', 0))
+                distance = float(row.get('trip_distance', 0))
+                if p_count <= 0 or distance <= 0:
+                    rejected_records += 1
+                    continue
+                
+                vendor_id = str(row.get('VendorID', 'UNKNOWN')).strip().upper()
+                
+                fare = float(row.get('fare_amount', 0))
+                tip = float(row.get('tip_amount', 0))
+                total_cost = fare + tip
+                
+                pu_id = str(row.get('PULocationID', ''))
+                pickup_zone = zone_mapping.get(pu_id, 'UNKNOWN')
+                
+                pickup_time = str(row.get('tpep_pickup_datetime', ''))
+                record_id = f"TX_{vendor_id}_{pickup_time}".replace(" ", "_").replace(":", "-")
+                
+                clean_row = {
+                    "record_id": record_id,
+                    "vendor_id": vendor_id,
+                    "passenger_count": p_count,
+                    "trip_distance": distance,
+                    "total_cost": str(total_cost),
+                    "pickup_zone": pickup_zone,
+                    "processed_at": datetime.utcnow().isoformat()
+                }
+                clean_records.append(clean_row)
+                
+            except Exception:
+                rejected_records += 1
+                
         output_payload = {
             "status": "Transformed",
-            "file_processed": file_processed,
-            "zone_summary": zone_summary.to_dict(orient='records'),
-            "payment_summary": payment_summary.to_dict(orient='records'),
-            "melted_pivot": melted_pivot.to_dict(orient='records')
+            "total_input_records": total_input_records,
+            "rejected_records": rejected_records,
+            "data": clean_records
         }
         
         if context and hasattr(context, 'function_name'):
@@ -65,8 +62,10 @@ def lambda_handler(event, context=None):
                 InvocationType='Event',
                 Payload=json.dumps(output_payload)
             )
+            print("Successfully triggered taxi-loader-service.")
             
         return output_payload
-        
+
     except Exception as e:
-        return {"status": "Error", "file_processed": "unknown", "error": str(e)}
+        print(f"Transformer Error: {str(e)}")
+        return {"status": "Error", "data": []}
