@@ -1,0 +1,16 @@
+version: 0.2
+
+phases:
+  build:
+    commands:
+      - pip install -r requirements.txt || true
+      - python -m py_compile src/taxi_extractor_lambda.py
+      - python -m py_compile src/taxi_transformer_lambda.py
+      - python -m py_compile src/taxi_loader_lambda.py
+      - echo "Build completed successfully for all 3 functions in src/"
+artifacts:
+  files:
+    - src/taxi_extractor_lambda.py
+    - src/taxi_transformer_lambda.py
+    - src/taxi_loader_lambda.py
+    - requirements.txt
