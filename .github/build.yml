@@ -1,4 +1,4 @@
-name: Deploy NYC Taxi Data Pipeline
+name: CI CD Data Pipeline
 
 on:
   push:
