@@ -6,15 +6,10 @@ phases:
       python: 3.11
   build:
     commands:
-      - echo "Zipping and Deploying Lambda Functions..."
-      # 1. Pehle files ko zip karo
-      - zip -j extractor.zip src/taxi_extractor_lambda.py
-      - zip -j transformer.zip src/taxi_transformer_lambda.py
-      - zip -j loader.zip src/taxi_loader_lambda.py
-      # 2. Ab real zip files deploy karo
-      - aws lambda update-function-code --function-name taxi-extractor-service --zip-file fileb://extractor.zip
-      - aws lambda update-function-code --function-name taxi-transformer-service --zip-file fileb://transformer.zip
-      - aws lambda update-function-code --function-name taxi-loader-service --zip-file fileb://loader.zip
+      - echo "Creating deployment package..."
+      # Hum hamari files ko artifacts folder mein bhej rahe hain bina kisi CLI command ke
 artifacts:
   files:
-    - '**/*'
+    - src/taxi_extractor_lambda.py
+    - src/taxi_transformer_lambda.py
+    - src/taxi_loader_lambda.py
