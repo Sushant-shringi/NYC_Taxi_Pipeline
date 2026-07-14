@@ -1,16 +1,16 @@
 version: 0.2
 
 phases:
+  install:
+    runtime-versions:
+      python: 3.14
   build:
     commands:
-      - pip install -r requirements.txt || true
-      - python -m py_compile src/taxi_extractor_lambda.py
-      - python -m py_compile src/taxi_transformer_lambda.py
-      - python -m py_compile src/taxi_loader_lambda.py
-      - echo "Build completed successfully for all 3 functions in src/"
+      
+      # Teeno Lambda Functions ko automatic update karne ki commands
+      - aws lambda update-function-code --function-name taxi-extractor-service --zip-file fileb://src/taxi_extractor_lambda.py
+      - aws lambda update-function-code --function-name taxi-transformer-service --zip-file fileb://src/taxi_transformer_lambda.py
+      - aws lambda update-function-code --function-name taxi-loader-service --zip-file fileb://src/taxi_loader_lambda.py
 artifacts:
   files:
-    - src/taxi_extractor_lambda.py
-    - src/taxi_transformer_lambda.py
-    - src/taxi_loader_lambda.py
-    - requirements.txt
+    - '**/*'

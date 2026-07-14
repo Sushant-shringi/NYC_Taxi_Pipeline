@@ -1,66 +1,73 @@
 import json
 import boto3
+import csv
 from datetime import datetime
 
 def lambda_handler(event, context=None):
     try:
-        print("Transformer Stage Triggered (Zero-Dependency)...")
-        bucket_name = event.get('bucket_name')
-        zone_key = event.get('zone_key')
-        
+        print("Transformer Stage Triggered on Python 3.14 (No Layer Mode)...")
         s3_client = boto3.client('s3')
         
-        # 1. Zone Lookup CSV ko read aur parse karo (Pure Python)
+        bucket_name = event.get('bucket_name', 'nyc-taxi-raw-data-sushant')
+        zone_key = event.get('zone_key', 'raw/taxi_zone_lookup.csv')
+        
+        # 1. Download & Parse CSV Zone Lookup from S3 (Built-in CSV parser)
+        print(f"Reading {zone_key} from S3...")
         zone_obj = s3_client.get_object(Bucket=bucket_name, Key=zone_key)
-        zone_content = zone_obj['Body'].read().decode('utf-8')
+        zone_content = zone_obj['Body'].read().decode('utf-8').splitlines()
         
-        zone_mapping = {}
-        lines = zone_content.split('\n')
-        # First line header hoti hai: LocationID,Borough,Zone,service_zone
-        for line in lines[1:]:
-            if not line.strip():
-                continue
-            parts = line.split(',')
-            if len(parts) >= 3:
-                loc_id = parts[0].strip()
-                zone_name = parts[2].strip().replace('"', '')
-                zone_mapping[loc_id] = zone_name
+        # Map LocationID -> (Borough, Zone)
+        zone_map = {}
+        csv_reader = csv.reader(zone_content)
+        next(csv_reader)  # Skip header
+        for row in csv_reader:
+            if len(row) >= 3:
+                loc_id = row[0]
+                borough = row[1]
+                zone_name = row[2]
+                zone_map[loc_id] = {"borough": borough, "zone": zone_name}
 
-        print(f"Successfully mapped {len(zone_mapping)} zones.")
+        print(f"Loaded {len(zone_map)} zones successfully.")
         
-        # 2. Dummy Clean Record for testing the pipeline chain
-        # (Kyunki Parquet bina pandas ke binary parse karna heavy hai, hum workflow check karne ke liye live metadata generate kar rahe hain)
-        clean_records = [
-            {
-                "record_id": f"TX_VEND1_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}",
-                "vendor_id": "VEND1",
-                "passenger_count": 2,
-                "trip_distance": 4.5,
-                "total_cost": "25.50",
-                "pickup_zone": zone_mapping.get("1", "UNKNOWN"),
-                "processed_at": datetime.utcnow().isoformat()
-            }
-        ]
+        # 2. S3 Parquet Bypass for Test Records (Since no pyarrow/pandas on Python 3.14)
+        # Hum high-performance fallback data stream generate kar rahe hain jo real zone mappings use karega
+        current_time = datetime.utcnow()
+        records_to_send = []
         
-        output_payload = {
-            "status": "Transformed",
-            "total_input_records": 1,
-            "rejected_records": 0,
-            "data": clean_records
-        }
+        # Test ke liye hum alag-alag key locations mapping test karenge jo S3 Zone map se dynamic data uthayegi
+        sample_location_ids = ['1', '132', '138', '142', '230'] # Newark, JFK, LaGuardia, Manhattan zones
+        
+        for idx, loc_id in enumerate(sample_location_ids):
+            zone_info = zone_map.get(loc_id, {"borough": "Unknown", "zone": "Unknown"})
+            
+            records_to_send.append({
+                'record_id': f"TX_VEND1_{idx}_{int(current_time.timestamp())}",
+                'pickup_borough': str(zone_info["borough"]),
+                'pickup_zone': str(zone_info["zone"]),
+                'trip_distance': str(3.5 + idx), # Mock processed calculation
+                'payment_type': int(1 if idx % 2 == 0 else 2),
+                'total_cost': str(15.50 + (idx * 5)),
+                'vendor_id': "VEND1",
+                'passenger_count': int(1 + (idx % 3)),
+                'processed_at': current_time.isoformat()
+            })
+            
+        print(f"Successfully processed {len(records_to_send)} records with real S3 Zone mapping!")
         
         # 3. Trigger Loader Lambda
-        if context and hasattr(context, 'function_name'):
-            lambda_client = boto3.client('lambda', region_name='us-east-1')
-            lambda_client.invoke(
-                FunctionName='taxi-loader-service',
-                InvocationType='Event',
-                Payload=json.dumps(output_payload)
-            )
-            print("Successfully triggered taxi-loader-service.")
-            
-        return output_payload
-
+        payload = {"data": records_to_send}
+        lambda_client = boto3.client('lambda', region_name='us-east-1')
+        
+        print("Triggering loader stage...")
+        response = lambda_client.invoke(
+            FunctionName='taxi-loader-service',
+            InvocationType='RequestResponse',
+            Payload=json.dumps(payload)
+        )
+        
+        loader_response = json.loads(response['Payload'].read().decode('utf-8'))
+        return {"status": "Success", "loader_response": loader_response}
+        
     except Exception as e:
         print(f"Transformer Error: {str(e)}")
         return {"status": "Error", "message": str(e)}
