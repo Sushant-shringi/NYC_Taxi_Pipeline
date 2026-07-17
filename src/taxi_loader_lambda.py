@@ -7,7 +7,7 @@ def lambda_handler(event, context=None):
         print("Loader Stage Triggered with accurate schemas and data types...")
         dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
         
-        # 📋 Sahi tables ke naam (Spelling Corrected)
+       
         zone_table = dynamodb.Table('nyc_taxi_zone_summary')
         payment_table = dynamodb.Table('nyc_taxi_payment_summary')
         borough_table = dynamodb.Table('nyc_taxi_borough_hour_long')
@@ -34,7 +34,7 @@ def lambda_handler(event, context=None):
             # Keys: pickup_month (String), payment_type (Number)
             payment_table.put_item(
                 Item={
-                    'pickup_month': str(current_time.strftime('%B')), # Jaise 'July' (String)
+                    'pickup_month': str(current_time.strftime('%B')), 
                     'payment_type': int(row.get('payment_type', 1)),   # Strict Number/Integer
                     'record_id': str(row.get('record_id', 'TX_DUMMY')),
                     'total_cost': str(row.get('total_cost', '25.50')),
