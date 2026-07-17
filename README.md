@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/hero-banner.png" width="100%" alt="NYC Taxi Pipeline Banner"/>
+<img src="nyc.png" width="100%" alt="NYC Taxi Pipeline Banner"/>
 
 <br>
 
