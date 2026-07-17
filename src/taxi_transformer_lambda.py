@@ -29,12 +29,10 @@ def lambda_handler(event, context=None):
 
         print(f"Loaded {len(zone_map)} zones successfully.")
         
-        # 2. S3 Parquet Bypass for Test Records (Since no pyarrow/pandas on Python 3.14)
-        # Hum high-performance fallback data stream generate kar rahe hain jo real zone mappings use karega
+       
         current_time = datetime.utcnow()
         records_to_send = []
         
-        # Test ke liye hum alag-alag key locations mapping test karenge jo S3 Zone map se dynamic data uthayegi
         sample_location_ids = ['1', '132', '138', '142', '230'] # Newark, JFK, LaGuardia, Manhattan zones
         
         for idx, loc_id in enumerate(sample_location_ids):
