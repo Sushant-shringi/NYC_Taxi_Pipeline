@@ -6,19 +6,18 @@ def lambda_handler(event, context=None):
     try:
         s3_client = boto3.client('s3')
         
-        # 📋 Aapka Bucket Name
+        
         bucket_name = "nyc-taxi-raw-data-sushant"
         
         jan_url = "https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2024-01.parquet"
         zone_url = "https://d37ci6vzurychx.cloudfront.net/misc/taxi_zone_lookup.csv"
         
-        # 🛡️ Browser User-Agent string jo CloudFront 403 block ko toddegi
+        
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
         }
         
-        # 1. Download & Stream Zone Lookup CSV to S3
         print("Downloading real Taxi Zone CSV file...")
         req_zone = urllib.request.Request(zone_url, headers=headers)
         with urllib.request.urlopen(req_zone) as response:
