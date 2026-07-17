@@ -6,7 +6,7 @@ def trigger_pipeline():
     
     lambda_client = boto3.client('lambda', region_name='us-east-1')
     
-    # Dummy S3 event payload format taaki Lambda function bina error ke extract stage shuru kar sake
+    
     mock_event = {
         "Records": [
             {
